@@ -11,14 +11,35 @@
       "bundleIdentifier": "com.solyapps.moneyskills",
       "supportsTablet": true,
       "requireFullScreen": false,
-      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
-    "web": { "output": "single", "bundler": "metro" },
+    "web": {
+      "output": "single",
+      "bundler": "metro"
+    },
     "plugins": [
       "expo-router",
-      ["expo-splash-screen", { "backgroundColor": "#131722", "image": "./assets/icon.png", "imageWidth": 140 }]
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#131722",
+          "image": "./assets/icon.png",
+          "imageWidth": 140
+        }
+      ]
     ],
-    "experiments": { "typedRoutes": false },
-    "icon": "./assets/icon.png"
+    "experiments": {
+      "typedRoutes": false
+    },
+    "icon": "./assets/icon.png",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ba408276-dde1-494b-8126-34f9396a9856"
+      }
+    },
+    "owner": "solomonsasson"
   }
 }
