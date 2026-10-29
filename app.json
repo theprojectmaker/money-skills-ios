@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Money Skills",
+    "slug": "money-skills",
+    "version": "1.0.0",
+    "orientation": "default",
+    "scheme": "moneyskills",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#131722",
+    "ios": {
+      "bundleIdentifier": "com.solyapps.moneyskills",
+      "supportsTablet": true,
+      "requireFullScreen": false,
+      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+    },
+    "web": { "output": "single", "bundler": "metro" },
+    "plugins": [
+      "expo-router",
+      ["expo-splash-screen", { "backgroundColor": "#131722", "image": "./assets/icon.png", "imageWidth": 140 }]
+    ],
+    "experiments": { "typedRoutes": false },
+    "icon": "./assets/icon.png"
+  }
+}
