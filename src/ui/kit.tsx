@@ -105,21 +105,22 @@ export function NumField(p: {
 }
 
 export function Sheet(p: { visible: boolean; onClose: () => void; title: string; children: React.ReactNode; width?: number; testID?: string }) {
+  // backdrop and card are siblings (not nested Pressables) so taps inside the card are never swallowed on iOS
   return (
     <Modal visible={p.visible} transparent animationType="fade" onRequestClose={p.onClose} supportedOrientations={['portrait', 'landscape']}>
-      <Pressable onPress={p.onClose} style={{ flex: 1, backgroundColor: C.scrim, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <Pressable
+      <View style={{ flex: 1, backgroundColor: C.scrim, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <Pressable onPress={p.onClose} style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }} accessibilityLabel="Dismiss" />
+        <View
           testID={p.testID}
-          onPress={() => {}}
           style={{ width: '100%', maxWidth: p.width ?? 560, maxHeight: '88%', backgroundColor: C.panel, borderRadius: 12, borderWidth: 1, borderColor: C.border2, overflow: 'hidden' }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: C.border }}>
             <Text style={{ color: C.strong, fontSize: 16, fontWeight: '800' }}>{p.title}</Text>
             <Pressable onPress={p.onClose} hitSlop={12} accessibilityLabel="Close"><Text style={{ color: C.muted, fontSize: 20 }}>✕</Text></Pressable>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 14 }}>{p.children}</ScrollView>
-        </Pressable>
-      </Pressable>
+          <ScrollView contentContainerStyle={{ padding: 14 }} keyboardShouldPersistTaps="handled">{p.children}</ScrollView>
+        </View>
+      </View>
     </Modal>
   );
 }

@@ -13,6 +13,7 @@ export function levelOf(xp: number) {
 
 const dayKey = (d = new Date()) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 export function touchStreak(now = new Date()) {
+  if (getState().streak.day === dayKey(now)) return;
   setState((s) => {
     const today = dayKey(now);
     if (s.streak.day === today) return;

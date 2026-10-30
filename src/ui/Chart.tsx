@@ -66,6 +66,12 @@ export default function Chart(p: ChartProps) {
   const sizeRef = useRef(size);
   sizeRef.current = size;
   const rootRef = useRef<View>(null);
+  // pan/pinch live in the chart until the finger lifts, so the whole terminal is not re-rendered on every touch event
+  const [live, setLiveState] = useState<ViewState | null>(null);
+  const liveRef = useRef<ViewState | null>(null);
+  const setLive = (v: ViewState | null) => { liveRef.current = v; setLiveState(v); };
+  const curView = () => liveRef.current ?? props.current.view;
+  const view = live ?? p.view;
 
   const { bars } = p;
   const n = bars.n;
@@ -74,9 +80,9 @@ export default function Chart(p: ChartProps) {
   const subH = subIds.length ? Math.min(92, Math.floor((size.h * 0.46) / subIds.length)) : 0;
   const mainH = Math.max(80, size.h - TIME_H - subH * subIds.length);
 
-  const span = Math.max(MIN_SPAN, Math.min(p.view.span, Math.max(MIN_SPAN, n + RIGHT_PAD)));
+  const span = Math.max(MIN_SPAN, Math.min(view.span, Math.max(MIN_SPAN, n + RIGHT_PAD)));
   const barW = plotW / span;
-  const R = n - 1 - p.view.offset + RIGHT_PAD; // right edge (bar units)
+  const R = n - 1 - view.offset + RIGHT_PAD; // right edge (bar units)
   const L = R - span;
   const i0 = Math.max(0, Math.floor(L));
   const i1 = Math.min(n - 1, Math.ceil(R));
@@ -115,12 +121,12 @@ export default function Chart(p: ChartProps) {
   const idxAtX = (x: number) => (x - barW / 2) / barW + L;
 
   // ---- gestures -------------------------------------------------------------------------------------------
-  const g = useRef({ startView: p.view, startX: 0, startY: 0, moved: false, t0: 0, pinch: 0, pinchSpan: 0, drawing: false, last: { x: 0, y: 0 } });
+  const g = useRef({ startView: p.view, startX: 0, startY: 0, moved: false, t0: 0, pinch: 0, pinchSpan: 0, drawing: false, last: { x: 0, y: 0 }, evZoom: false, evPan: false } as any);
   const mapPoint = (x: number, y: number) => {
     const pr = props.current;
     const sz = sizeRef.current;
     const pw = Math.max(50, sz.w - AXIS_W);
-    const bw = pw / Math.max(MIN_SPAN, Math.min(pr.view.span, Math.max(MIN_SPAN, pr.bars.n + RIGHT_PAD)));
+    const bw = pw / Math.max(MIN_SPAN, Math.min(curView().span, Math.max(MIN_SPAN, pr.bars.n + RIGHT_PAD)));
     return { x, y, bw };
   };
   const snapPrice = (xpx: number, ypx: number, rawPrice: number): number => {
@@ -181,7 +187,7 @@ export default function Chart(p: ChartProps) {
         const pr = props.current;
         const ne = e.nativeEvent;
         const x = ne.locationX, y = ne.locationY;
-        g.current = { startView: pr.view, startX: x, startY: y, moved: false, t0: Date.now(), pinch: 0, pinchSpan: pr.view.span, drawing: false, last: { x, y } };
+        g.current = { startView: curView(), startX: x, startY: y, moved: false, t0: Date.now(), pinch: 0, pinchSpan: curView().span, drawing: false, last: { x, y }, evZoom: false, evPan: false } as any;
         const drawingTool = pr.tool === 'trend' || pr.tool === 'fib' || pr.tool === 'rect' || pr.tool === 'hline';
         if (drawingTool) {
           const pt = pointAt(x, y);
@@ -198,10 +204,10 @@ export default function Chart(p: ChartProps) {
         const st = g.current;
         if (touches && touches.length >= 2) {
           const dist = Math.hypot(touches[0].locationX - touches[1].locationX, touches[0].locationY - touches[1].locationY);
-          if (!st.pinch) { st.pinch = dist; st.pinchSpan = pr.view.span; }
+          if (!st.pinch) { st.pinch = dist; st.pinchSpan = curView().span; }
           else {
             const ns = Math.max(MIN_SPAN, Math.min(1500, Math.round(st.pinchSpan * (st.pinch / Math.max(20, dist)))));
-            if (ns !== pr.view.span) { pr.onView({ span: ns }); pr.onEvent('zoom'); }
+            if (ns !== curView().span) { setLive({ ...curView(), span: ns }); if (!st.evZoom) { st.evZoom = true; pr.onEvent('zoom'); } }
           }
           st.moved = true;
           return;
@@ -220,10 +226,11 @@ export default function Chart(p: ChartProps) {
         const shift = (gs.dx / bw) | 0;
         const maxBack = Math.max(0, props.current.bars.n - 10);
         const off = Math.max(-RIGHT_PAD + 1, Math.min(maxBack, st.startView.offset + shift));
-        if (off !== pr.view.offset) { pr.onView({ offset: off }); pr.onEvent('pan'); }
+        if (off !== curView().offset) { setLive({ ...curView(), offset: off }); if (!st.evPan) { st.evPan = true; pr.onEvent('pan'); } }
       },
       onPanResponderRelease: (e, gs) => {
         const pr = props.current;
+        commitLive();
         const st = g.current;
         const ne = e.nativeEvent;
         const x = ne.locationX ?? st.last.x, y = ne.locationY ?? st.last.y;
@@ -258,10 +265,12 @@ export default function Chart(p: ChartProps) {
           if (hit === null) setCross(null);
         }
       },
-      onPanResponderTerminate: () => {},
+      onPanResponderTerminate: () => { commitLive(); },
     }),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   []);
+
+  const commitLive = () => { const v = liveRef.current; if (v) { setLive(null); props.current.onView(v); } };
 
   // keep the draft setter/ref reachable from the once-created responder
   const draftRef = useRef(draft);
