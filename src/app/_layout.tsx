@@ -1,26 +1,45 @@
 import React, { useEffect } from 'react';
-import { Pressable, Text, View, useWindowDimensions, ActivityIndicator, Platform } from 'react-native';
+import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Slot, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { load, setState, useStore, getState, subscribe, save } from '../store';
-import { checkAchievements, levelOf, touchStreak } from '../progress';
+import { load, set, useStore } from '../store';
 import { C } from '../ui/theme';
-import { Btn, Sheet } from '../ui/kit';
-import { ToastBar } from '../ui/terminal/Terminal';
-import * as sim from '../sim';
-import * as lessons from '../lessons';
-import * as store from '../store';
-
-// Test hook for the browser preview only.
-if (Platform.OS === 'web' && typeof window !== 'undefined' && __DEV__) (window as any).__ms = { sim, lessons, store };
+import { Button, H, Label, P } from '../ui/kit';
 
 const TABS = [
-  { path: '/', label: 'Trade', icon: '📈' },
-  { path: '/learn', label: 'Learn', icon: '🎓' },
-  { path: '/tools', label: 'Tools', icon: '🧮' },
-  { path: '/profile', label: 'Profile', icon: '🏆' },
+  { path: '/', label: 'Predict' },
+  { path: '/trade', label: 'Trade' },
+  { path: '/learn', label: 'Learn' },
+  { path: '/tools', label: 'Tools' },
 ];
+
+class Boundary extends React.Component<{ children: React.ReactNode }, { err: string | null }> {
+  state = { err: null as string | null };
+  static getDerivedStateFromError(e: unknown) { return { err: String((e as Error)?.message ?? e) }; }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <View style={{ flex: 1, backgroundColor: C.bg, padding: 32, justifyContent: 'center', gap: 14 }}>
+        <H>Something broke on this screen</H>
+        <P dim>{this.state.err}</P>
+        <Button label="Try again" kind="solid" onPress={() => this.setState({ err: null })} />
+      </View>
+    );
+  }
+}
+
+function Welcome() {
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 32, paddingTop: 80, maxWidth: 640, alignSelf: 'center', gap: 18 }}>
+      <Label>Money Skills</Label>
+      <H size={34}>Learn to trade by predicting, then watching what happens.</H>
+      <P dim>Each round shows you a chart that stops part-way. You decide: buy, sell short, or stay out. Then the next weeks play out fast, and you see how your decision and your risk would have done.</P>
+      <P dim>Everything here is simulated on your device. The companies, prices and charts are invented, and nothing needs a connection. This is education, not financial advice, and no setup works every time. Most real beginners lose money, so learn the risk rules first.</P>
+      <Button label="Start" kind="solid" testID="accept" onPress={() => set({ seen: true })} style={{ marginTop: 8 }} />
+    </ScrollView>
+  );
+}
 
 function Shell() {
   const path = usePathname();
@@ -28,64 +47,45 @@ function Shell() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const ready = useStore((s) => s.ready);
-  const xp = useStore((s) => s.xp);
-  const streak = useStore((s) => s.streak.count);
-  const seen = useStore((s) => s.settings.disclaimerSeen);
-  const rail = width >= 700;
-  const lv = levelOf(xp);
+  const seen = useStore((s) => s.seen);
+  const rail = width >= 760;
 
-  useEffect(() => {
-    load().then(() => touchStreak());
-    const off = subscribe(() => checkAchievementsSoon());
-    const onHide = () => { save(); };
-    if (Platform.OS === 'web' && typeof document !== 'undefined') document.addEventListener('visibilitychange', onHide);
-    return () => { off(); if (Platform.OS === 'web' && typeof document !== 'undefined') document.removeEventListener('visibilitychange', onHide); };
-  }, []);
+  useEffect(() => { void load(); }, []);
 
-  if (!ready) return <View style={{ flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={C.accent} /></View>;
+  if (!ready) return <View style={{ flex: 1, backgroundColor: C.bg }} />;
+  if (!seen) return <View style={{ flex: 1, backgroundColor: C.bg, paddingTop: insets.top }}><Welcome /></View>;
 
-  const active = (p: string) => (p === '/' ? path === '/' || path === '/index' : path.startsWith(p) || (p === '/learn' && path.startsWith('/lesson')));
-  const nav = TABS.map((t) => (
-    <Pressable key={t.path} testID={`nav-${t.label.toLowerCase()}`} onPress={() => router.push(t.path as any)} accessibilityLabel={t.label}
-      style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: rail ? 12 : 6, flex: rail ? undefined : 1, backgroundColor: active(t.path) ? C.active : 'transparent', borderRadius: rail ? 10 : 0, marginVertical: rail ? 2 : 0 }}>
-      <Text style={{ fontSize: 22 }}>{t.icon}</Text>
-      <Text style={{ color: active(t.path) ? '#fff' : C.muted, fontSize: 10, fontWeight: '700', marginTop: 2 }}>{t.label}</Text>
-    </Pressable>
-  ));
+  const active = (t: string) => (t === '/' ? path === '/' || path === '/index' : path.startsWith(t) || (t === '/learn' && path.startsWith('/lesson')));
+  const nav = TABS.map((t) => {
+    const on = active(t.path);
+    return (
+      <Pressable
+        key={t.path}
+        testID={`nav-${t.label.toLowerCase()}`}
+        accessibilityRole="button"
+        onPress={() => router.navigate(t.path as never)}
+        style={{
+          flex: rail ? undefined : 1, paddingVertical: rail ? 14 : 12, paddingHorizontal: rail ? 14 : 0, alignItems: rail ? 'flex-start' : 'center',
+          borderLeftWidth: rail ? 3 : 0, borderLeftColor: on ? C.text : 'transparent', borderTopWidth: rail ? 0 : 2, borderTopColor: on ? C.text : 'transparent',
+        }}
+      >
+        <Text style={{ color: on ? C.text : C.faint, fontWeight: '700', fontSize: 14, letterSpacing: 0.3 }}>{t.label}</Text>
+      </Pressable>
+    );
+  });
 
   return (
     <View style={{ flex: 1, flexDirection: rail ? 'row' : 'column', backgroundColor: C.bg, paddingTop: insets.top }}>
       {rail && (
-        <View style={{ width: 72, backgroundColor: C.panel, borderRightWidth: 1, borderRightColor: C.border, paddingVertical: 8, paddingHorizontal: 6 }}>
+        <View style={{ width: 112, backgroundColor: C.surface, borderRightWidth: 1, borderRightColor: C.line, paddingTop: 22 }}>
+          <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, letterSpacing: -0.2, paddingHorizontal: 16, marginBottom: 18, lineHeight: 18 }}>Money{'\n'}Skills</Text>
           {nav}
-          <View style={{ flex: 1 }} />
-          <View style={{ alignItems: 'center', paddingBottom: 8 }} testID="level-chip">
-            <Text style={{ color: C.warn, fontWeight: '900' }}>Lv {lv.level}</Text>
-            <Text style={{ color: C.muted, fontSize: 10 }}>🔥 {streak}</Text>
-          </View>
         </View>
       )}
-      <View style={{ flex: 1 }}><Slot /></View>
-      {!rail && <View style={{ flexDirection: 'row', backgroundColor: C.panel, borderTopWidth: 1, borderTopColor: C.border, paddingBottom: insets.bottom }}>{nav}</View>}
-      <Sheet visible={!seen} onClose={() => {}} title="Before you start" width={520} testID="disclaimer">
-        <Text style={{ color: C.text, fontSize: 15, lineHeight: 23, marginBottom: 10 }}>
-          Money Skills is for <Text style={{ fontWeight: '800', color: C.strong }}>education and practice</Text>. It is not financial, tax or legal advice, and it never promises profits.
-        </Text>
-        <Text style={{ color: C.text, fontSize: 15, lineHeight: 23, marginBottom: 10 }}>
-          Every company, price and chart is <Text style={{ fontWeight: '800', color: C.strong }}>simulated on your device</Text>. Nothing is real market data, and the app works fully offline. Your progress is saved only on this iPad.
-        </Text>
-        <Text style={{ color: C.text, fontSize: 15, lineHeight: 23, marginBottom: 14 }}>Real trading and investing can lose money, and most beginners lose money. Never risk money you cannot afford to lose.</Text>
-        <Btn testID="accept" kind="primary" label="I understand, let's go" onPress={() => setState((s) => ({ settings: { ...s.settings, disclaimerSeen: true } }))} />
-      </Sheet>
-      {path !== '/' && <ToastBar />}
+      <View style={{ flex: 1 }}><Boundary><Slot /></Boundary></View>
+      {!rail && <View style={{ flexDirection: 'row', backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.line, paddingBottom: insets.bottom }}>{nav}</View>}
     </View>
   );
-}
-
-let soon: any = null;
-function checkAchievementsSoon() {
-  if (soon) return;
-  soon = setTimeout(() => { soon = null; if (getState().ready) checkAchievements(); }, 400);
 }
 
 export default function Layout() {

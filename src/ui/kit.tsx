@@ -1,49 +1,67 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleProp, Text, TextInput, View, ViewStyle } from 'react-native';
-import { C, R } from './theme';
+// Plain building blocks. Square corners, hairline rules, tabular numerals: closer to a printed ledger than an app kit.
+import React from 'react';
+import { Pressable, Text, TextStyle, View, ViewStyle, StyleProp } from 'react-native';
+import { C, mono } from './theme';
 
-export const mono = Platform.OS === 'web' ? 'Menlo, Consolas, ui-monospace, monospace' : Platform.OS === 'ios' ? 'Menlo' : 'monospace';
+export function Label({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+  return <Text style={[{ color: C.faint, fontSize: 11, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' }, style]}>{children}</Text>;
+}
 
-export function Btn(p: {
-  label: string; onPress?: () => void; kind?: 'primary' | 'ghost' | 'up' | 'down' | 'warn' | 'plain'; small?: boolean; disabled?: boolean; style?: StyleProp<ViewStyle>; flex?: boolean; testID?: string;
-}) {
-  const kind = p.kind ?? 'plain';
-  const bg = kind === 'primary' ? C.accent : kind === 'up' ? C.up : kind === 'down' ? C.down : kind === 'warn' ? C.warn : kind === 'ghost' ? 'transparent' : C.panel;
-  const fg = kind === 'warn' ? '#000' : kind === 'plain' || kind === 'ghost' ? C.text : '#fff';
+export function H({ children, size = 22, style }: { children: React.ReactNode; size?: number; style?: StyleProp<TextStyle> }) {
+  return <Text style={[{ color: C.text, fontSize: size, fontWeight: '700', letterSpacing: -0.3, lineHeight: size * 1.2 }, style]}>{children}</Text>;
+}
+
+export function P({ children, style, dim }: { children: React.ReactNode; style?: StyleProp<TextStyle>; dim?: boolean }) {
+  return <Text style={[{ color: dim ? C.mute : C.text, fontSize: 15, lineHeight: 23 }, style]}>{children}</Text>;
+}
+
+export function Num({ children, style, size = 15 }: { children: React.ReactNode; style?: StyleProp<TextStyle>; size?: number }) {
+  return <Text style={[{ color: C.text, fontFamily: mono, fontSize: size, fontVariant: ['tabular-nums'] }, style]}>{children}</Text>;
+}
+
+export function Rule({ style }: { style?: StyleProp<ViewStyle> }) {
+  return <View style={[{ height: 1, backgroundColor: C.line }, style]} />;
+}
+
+export function Button(p: { label: string; onPress?: () => void; kind?: 'solid' | 'line' | 'up' | 'down' | 'quiet'; disabled?: boolean; small?: boolean; style?: StyleProp<ViewStyle>; testID?: string }) {
+  const kind = p.kind ?? 'line';
+  const bg = kind === 'solid' ? C.text : kind === 'up' ? C.up : kind === 'down' ? C.down : 'transparent';
+  const fg = kind === 'solid' ? C.ink : kind === 'up' || kind === 'down' ? '#08130e' : C.text;
   return (
     <Pressable
       testID={p.testID}
       accessibilityRole="button"
-      accessibilityLabel={p.label}
       onPress={p.disabled ? undefined : p.onPress}
+      hitSlop={6}
       style={({ pressed }) => [
         {
-          backgroundColor: bg, borderRadius: R.md, paddingHorizontal: p.small ? 10 : 16, paddingVertical: p.small ? 6 : 11, minHeight: p.small ? 32 : 42,
-          justifyContent: 'center', alignItems: 'center', opacity: p.disabled ? 0.4 : pressed ? 0.75 : 1,
-          borderWidth: kind === 'plain' || kind === 'ghost' ? 1 : 0, borderColor: C.border2,
+          backgroundColor: bg, borderWidth: kind === 'quiet' ? 0 : 1, borderColor: kind === 'line' ? C.lineStrong : bg,
+          paddingHorizontal: p.small ? 12 : 18, minHeight: p.small ? 36 : 48, justifyContent: 'center', alignItems: 'center',
+          borderRadius: 3, opacity: p.disabled ? 0.35 : pressed ? 0.7 : 1,
         },
-        p.flex ? { flex: 1 } : null,
         p.style,
       ]}
     >
-      <Text style={{ color: fg, fontWeight: '700', fontSize: p.small ? 12 : 14 }}>{p.label}</Text>
+      <Text style={{ color: fg, fontWeight: '700', fontSize: p.small ? 13 : 15, letterSpacing: 0.2 }}>{p.label}</Text>
     </Pressable>
   );
 }
 
-export function Seg<T extends string | number>(p: { value: T; options: { v: T; label: string; color?: string }[]; onChange: (v: T) => void; small?: boolean; testID?: string }) {
+/** A row of mutually exclusive options. Selected one is filled; no rounded pills. */
+export function Choice<T extends string | number>(p: { value: T; options: { v: T; label: string }[]; onChange: (v: T) => void; testID?: string }) {
   return (
-    <View style={{ flexDirection: 'row', backgroundColor: C.panel2, borderRadius: R.md, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }}>
-      {p.options.map((o) => {
+    <View style={{ flexDirection: 'row', borderWidth: 1, borderColor: C.lineStrong, borderRadius: 3, overflow: 'hidden' }}>
+      {p.options.map((o, i) => {
         const on = o.v === p.value;
         return (
           <Pressable
             key={String(o.v)}
             testID={p.testID ? `${p.testID}-${o.v}` : undefined}
+            accessibilityRole="button"
             onPress={() => p.onChange(o.v)}
-            style={{ paddingHorizontal: p.small ? 9 : 12, paddingVertical: p.small ? 6 : 9, minHeight: p.small ? 32 : 40, justifyContent: 'center', backgroundColor: on ? o.color ?? C.active : 'transparent' }}
+            style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.text : 'transparent', borderLeftWidth: i ? 1 : 0, borderLeftColor: C.lineStrong, paddingHorizontal: 6 }}
           >
-            <Text style={{ color: on ? '#fff' : C.muted, fontWeight: '700', fontSize: p.small ? 12 : 13 }}>{o.label}</Text>
+            <Text style={{ color: on ? C.ink : C.mute, fontWeight: '700', fontSize: 14 }}>{o.label}</Text>
           </Pressable>
         );
       })}
@@ -51,137 +69,51 @@ export function Seg<T extends string | number>(p: { value: T; options: { v: T; l
   );
 }
 
-export function Card(p: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[{ backgroundColor: C.panel, borderRadius: R.lg, borderWidth: 1, borderColor: C.border, padding: 16 }, p.style]}>{p.children}</View>;
-}
-
-export function Label({ children, style }: { children: React.ReactNode; style?: any }) {
-  return <Text style={[{ color: C.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' }, style]}>{children}</Text>;
-}
-
-export function Chip({ text, color }: { text: string; color?: string }) {
-  return (
-    <View style={{ backgroundColor: (color ?? C.accent) + '33', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
-      <Text style={{ color: color ?? C.accent2, fontSize: 11, fontWeight: '700' }}>{text}</Text>
-    </View>
+export function Stepper(p: { label: string; value: number; min: number; max: number; step: number; unit?: string; decimals?: number; onChange: (v: number) => void; testID?: string }) {
+  const d = p.decimals ?? 1;
+  const bump = (dir: number) => p.onChange(Math.max(p.min, Math.min(p.max, Math.round((p.value + dir * p.step) * 100) / 100)));
+  const btn = (t: string, dir: number, id: string) => (
+    <Pressable testID={p.testID ? `${p.testID}-${id}` : undefined} accessibilityRole="button" accessibilityLabel={`${p.label} ${id}`} onPress={() => bump(dir)} hitSlop={6}
+      style={({ pressed }) => ({ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.lineStrong, borderRadius: 3, opacity: pressed ? 0.6 : 1 })}>
+      <Text style={{ color: C.text, fontSize: 22, lineHeight: 24 }}>{t}</Text>
+    </Pressable>
   );
-}
-
-/** A number box that keeps what you typed (like "1.") while handing the parsed number up. */
-export function NumField(p: {
-  value: number | undefined; onChange: (v: number | undefined) => void; label?: string; prefix?: string; suffix?: string; placeholder?: string; width?: number; testID?: string; onFocus?: () => void; right?: React.ReactNode;
-}) {
-  const [text, setText] = useState(p.value === undefined ? '' : String(p.value));
-  useEffect(() => {
-    const parsed = text === '' ? undefined : parseFloat(text);
-    if (parsed !== p.value && !(Number.isNaN(parsed) && p.value === undefined)) setText(p.value === undefined ? '' : String(p.value));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [p.value]);
   return (
-    <View style={{ width: p.width }}>
-      {p.label ? <Label style={{ marginBottom: 4 }}>{p.label}</Label> : null}
-      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderRadius: R.md, borderWidth: 1, borderColor: C.border2, paddingHorizontal: 10, minHeight: 40 }}>
-        {p.prefix ? <Text style={{ color: C.muted, marginRight: 4 }}>{p.prefix}</Text> : null}
-        <TextInput
-          testID={p.testID}
-          value={text}
-          onFocus={p.onFocus}
-          placeholder={p.placeholder}
-          placeholderTextColor={C.muted}
-          keyboardType="decimal-pad"
-          onChangeText={(t) => {
-            const clean = t.replace(/[^0-9.]/g, '');
-            setText(clean);
-            const v = clean === '' ? undefined : parseFloat(clean);
-            p.onChange(v === undefined || Number.isNaN(v) ? undefined : v);
-          }}
-          style={{ flex: 1, color: C.strong, fontFamily: mono, fontSize: 15, paddingVertical: 8, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}) }}
-        />
-        {p.suffix ? <Text style={{ color: C.muted, marginLeft: 4 }}>{p.suffix}</Text> : null}
-        {p.right}
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Text style={{ color: C.mute, fontSize: 14 }}>{p.label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        {btn('−', -1, 'minus')}
+        <Num style={{ minWidth: 64, textAlign: 'center' }}>{p.value.toFixed(d)}{p.unit ?? ''}</Num>
+        {btn('+', 1, 'plus')}
       </View>
     </View>
   );
 }
 
-export function Sheet(p: { visible: boolean; onClose: () => void; title: string; children: React.ReactNode; width?: number; testID?: string }) {
-  // backdrop and card are siblings (not nested Pressables) so taps inside the card are never swallowed on iOS
+export function Stat({ label, value, tone }: { label: string; value: string; tone?: 'up' | 'down' | 'amber' }) {
+  const color = tone === 'up' ? C.up : tone === 'down' ? C.down : tone === 'amber' ? C.amber : C.text;
   return (
-    <Modal visible={p.visible} transparent animationType="fade" onRequestClose={p.onClose} supportedOrientations={['portrait', 'landscape']}>
-      <View style={{ flex: 1, backgroundColor: C.scrim, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <Pressable onPress={p.onClose} style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }} accessibilityLabel="Dismiss" />
-        <View
-          testID={p.testID}
-          style={{ width: '100%', maxWidth: p.width ?? 560, maxHeight: '88%', backgroundColor: C.panel, borderRadius: 12, borderWidth: 1, borderColor: C.border2, overflow: 'hidden' }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: C.border }}>
-            <Text style={{ color: C.strong, fontSize: 16, fontWeight: '800' }}>{p.title}</Text>
-            <Pressable onPress={p.onClose} hitSlop={12} accessibilityLabel="Close"><Text style={{ color: C.muted, fontSize: 20 }}>✕</Text></Pressable>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 14 }} keyboardShouldPersistTaps="handled">{p.children}</ScrollView>
-        </View>
-      </View>
-    </Modal>
+    <View style={{ flex: 1, minWidth: 70 }}>
+      <Label>{label}</Label>
+      <Num size={18} style={{ color, marginTop: 4 }}>{value}</Num>
+    </View>
   );
 }
 
-export function Row({ children, gap = 8, style }: { children: React.ReactNode; gap?: number; style?: StyleProp<ViewStyle> }) {
+export function Row({ children, gap = 10, style }: { children: React.ReactNode; gap?: number; style?: StyleProp<ViewStyle> }) {
   return <View style={[{ flexDirection: 'row', alignItems: 'center', gap }, style]}>{children}</View>;
 }
 
-export function ProgressBar({ pct, color = C.accent }: { pct: number; color?: string }) {
+/** Key facts as aligned left/right lines. */
+export function Facts({ rows }: { rows: [string, string, ('up' | 'down' | 'amber')?][] }) {
   return (
-    <View style={{ height: 6, borderRadius: 3, backgroundColor: C.border, overflow: 'hidden' }}>
-      <View style={{ width: `${Math.max(0, Math.min(100, pct * 100))}%`, height: 6, backgroundColor: color }} />
-    </View>
-  );
-}
-
-// Renders lesson blocks: paragraphs with bold, italic and code marks, lists, callout boxes and tables.
-import type { Block } from '../content/types';
-function Inline({ text, style }: { text: string; style?: any }) {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g).filter(Boolean);
-  return (
-    <Text style={[{ color: C.text, fontSize: 15, lineHeight: 23 }, style]}>
-      {parts.map((s, i) =>
-        s.startsWith('**') ? <Text key={i} style={{ fontWeight: '800', color: C.strong }}>{s.slice(2, -2)}</Text>
-        : s.startsWith('`') ? <Text key={i} style={{ fontFamily: mono, backgroundColor: C.panel2, color: C.strong }}>{s.slice(1, -1)}</Text>
-        : s.startsWith('*') ? <Text key={i} style={{ fontStyle: 'italic' }}>{s.slice(1, -1)}</Text>
-        : s)}
-    </Text>
-  );
-}
-const callout = (icon: string, color: string, text: string, key: number) => (
-  <View key={key} style={{ borderLeftWidth: 3, borderLeftColor: color, backgroundColor: color + '22', padding: 10, borderRadius: 6, marginVertical: 4 }}>
-    <Inline text={`${icon} ${text}`} />
-  </View>
-);
-export function Blocks({ blocks, size }: { blocks: Block[]; size?: number }) {
-  return (
-    <View style={{ gap: 9 }}>
-      {blocks.map((b, i) => {
-        if (typeof b === 'string') return <Inline key={i} text={b} style={size ? { fontSize: size, lineHeight: size * 1.5 } : undefined} />;
-        if ('list' in b) return <View key={i} style={{ gap: 5 }}>{b.list.map((x, k) => <View key={k} style={{ flexDirection: 'row', gap: 8 }}><Text style={{ color: C.accent2 }}>•</Text><View style={{ flex: 1 }}><Inline text={x} /></View></View>)}</View>;
-        if ('steps' in b) return <View key={i} style={{ gap: 5 }}>{b.steps.map((x, k) => <View key={k} style={{ flexDirection: 'row', gap: 8 }}><Text style={{ color: C.accent2, fontWeight: '800', width: 18 }}>{k + 1}.</Text><View style={{ flex: 1 }}><Inline text={x} /></View></View>)}</View>;
-        if ('tip' in b) return callout('💡', C.up, b.tip, i);
-        if ('warn' in b) return callout('⚠️', C.down, b.warn, i);
-        if ('example' in b) return callout('🔢', C.accent2, b.example, i);
-        if ('rule' in b) return callout('⭐', C.warn, b.rule, i);
-        if ('table' in b)
-          return (
-            <View key={i} style={{ borderWidth: 1, borderColor: C.border2, borderRadius: 6, overflow: 'hidden' }}>
-              <View style={{ flexDirection: 'row', backgroundColor: C.panel2 }}>
-                {b.table.head.map((h, k) => <Text key={k} style={{ flex: 1, color: C.strong, fontWeight: '800', padding: 8, fontSize: 13 }}>{h}</Text>)}
-              </View>
-              {b.table.rows.map((r, ri) => (
-                <View key={ri} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border }}>
-                  {r.map((c, k) => <Text key={k} style={{ flex: 1, color: C.text, padding: 8, fontSize: 13 }}>{c}</Text>)}
-                </View>
-              ))}
-            </View>
-          );
-        return null;
-      })}
+    <View>
+      {rows.map(([k, v, tone], i) => (
+        <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderTopWidth: i ? 1 : 0, borderTopColor: C.line }}>
+          <Text style={{ color: C.mute, fontSize: 14 }}>{k}</Text>
+          <Num style={{ color: tone === 'up' ? C.up : tone === 'down' ? C.down : tone === 'amber' ? C.amber : C.text }}>{v}</Num>
+        </View>
+      ))}
     </View>
   );
 }
