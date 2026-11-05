@@ -1,30 +1,57 @@
-// Real stock data for the terminal, fetched natively (no browser CORS rules) so that a filtered Wi-Fi only has to allow ONE of these:
-// the Worker relay or either Yahoo host. The last good route is tried first, routes that fail rest for a minute.
-// When nothing answers, the last saved chart for that symbol is returned and marked stale, so the terminal still opens.
+// Real stock data for the terminal, fetched natively (no browser CORS rules) so that a filtered Wi-Fi only has to allow ONE source:
+// the Worker relay, either Yahoo host, CNBC or Nasdaq. The last good route is tried first (also after a restart), and routes that fail
+// rest for a minute. When nothing answers, the last saved chart for that symbol is returned and marked stale.
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { cnbcCall, Get, nasdaqCall, NoData } from './sources';
 
-type Route = { name: string; url: (op: string, p: Record<string, string>) => string; direct: boolean };
+const UA = 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+const ROUTE_MS = 5000;
+const REST_MS = 60000;
+const BEST_KEY = 'terminal:route';
 
-const relayRoute = (name: string, base: string): Route => ({
-  name, direct: false, url: (op, p) => `${base}/${op}?${new URLSearchParams(p).toString()}`,
-});
-const yahooRoute = (host: string): Route => ({
-  name: host, direct: true,
-  url: (op, p) => {
-    if (op === 'chart') return `https://${host}/v8/finance/chart/${encodeURIComponent(p.symbol)}?interval=${p.interval}&range=${p.range}&includePrePost=${p.prepost === '1'}&events=div%2Csplit`;
-    if (op === 'spark') return `https://${host}/v8/finance/spark?symbols=${p.symbols.split(',').map(encodeURIComponent).join(',')}&range=1d&interval=5m`;
-    return `https://${host}/v1/finance/search?q=${encodeURIComponent(p.q)}&quotesCount=10&newsCount=0&listsCount=0`;
+export type Route = { name: string; label: string; call: (op: string, p: Record<string, string>, get: Get) => Promise<string> };
+
+const query = (p: Record<string, string>) => Object.keys(p).map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(p[k])}`).join('&');
+
+const relayRoute = (name: string, label: string, base: string): Route => ({
+  name, label,
+  call: async (op, p, get) => {
+    const r = await get(`${base}/${op}?${query(p)}`);
+    if (r.status === 429 || r.status >= 500) throw new Error('route busy');
+    const body = JSON.parse(r.text);                 // a filter's "blocked" page is HTML and lands here
+    if (typeof body !== 'object' || body === null || body.ok === undefined) throw new Error('not an answer');
+    return r.text;
   },
+});
+const yahooRoute = (name: string, label: string, host: string): Route => ({
+  name, label,
+  call: async (op, p, get) => {
+    const url = op === 'chart' ? `https://${host}/v8/finance/chart/${encodeURIComponent(p.symbol)}?interval=${p.interval}&range=${p.range}&includePrePost=${p.prepost === '1'}&events=div%2Csplit`
+      : op === 'spark' ? `https://${host}/v8/finance/spark?symbols=${p.symbols.split(',').map(encodeURIComponent).join(',')}&range=1d&interval=5m`
+      : `https://${host}/v1/finance/search?q=${encodeURIComponent(p.q)}&quotesCount=10&newsCount=0&listsCount=0`;
+    const r = await get(url, { 'User-Agent': UA, Accept: 'application/json' });
+    if (r.status === 429 || r.status >= 500) throw new Error('route busy');
+    const body = JSON.parse(r.text);
+    if (typeof body !== 'object' || body === null) throw new Error('not an answer');
+    return JSON.stringify(op === 'chart' ? normalizeChart(body) : op === 'spark' ? normalizeSpark(body) : normalizeSearch(body));
+  },
+});
+const sourceRoute = (name: string, label: string, fn: typeof cnbcCall): Route => ({
+  name, label,
+  call: (op, p, get) => fn(op, p, async (url, headers) => {
+    const r = await get(url, headers);
+    if (r.status === 429 || r.status >= 500 || r.status === 403) throw new Error('route busy');
+    return r;
+  }),
 });
 
 export const ROUTES: Route[] = [
-  relayRoute('worker', 'https://papertrader-data.greatneck.workers.dev'),
-  yahooRoute('query1.finance.yahoo.com'),
-  yahooRoute('query2.finance.yahoo.com'),
+  relayRoute('worker', 'Paper Trader relay', 'https://papertrader-data.greatneck.workers.dev'),
+  yahooRoute('yahoo1', 'Yahoo Finance', 'query1.finance.yahoo.com'),
+  yahooRoute('yahoo2', 'Yahoo Finance (second address)', 'query2.finance.yahoo.com'),
+  sourceRoute('cnbc', 'CNBC', cnbcCall),
+  sourceRoute('nasdaq', 'Nasdaq', nasdaqCall),
 ];
-const UA = 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
-const ROUTE_MS = 6000;
-const REST_MS = 60000;
 
 // ---- Yahoo's answers in the relay's shape (same rules as paper-trader/worker/src/index.js) ------------------------------------
 const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v) ? v : null);
@@ -91,31 +118,27 @@ export function normalizeSearch(raw: any) {
   return { ok: true, results };
 }
 
-const fromYahoo = (op: string, raw: any) => (op === 'chart' ? normalizeChart(raw) : op === 'spark' ? normalizeSpark(raw) : normalizeSearch(raw));
-
 // ---- Routing -----------------------------------------------------------------------------------------------------------------
-export type Deps = { fetchImpl?: typeof fetch; now?: () => number; storage?: Pick<typeof AsyncStorage, 'getItem' | 'setItem'> };
+export type Deps = { fetchImpl?: typeof fetch; now?: () => number; storage?: Pick<typeof AsyncStorage, 'getItem' | 'setItem'>; routes?: Route[] };
 
-export function createRelay({ fetchImpl = fetch, now = Date.now, storage = AsyncStorage }: Deps = {}) {
-  let best = 0;
-  const restUntil = ROUTES.map(() => 0);
-  const lastSave = new Map<string, number>();
-
-  async function tryRoute(route: Route, op: string, params: Record<string, string>): Promise<string> {
+function makeGet(fetchImpl: typeof fetch): Get {
+  return async (url, headers) => {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), ROUTE_MS);
     try {
-      const res = await fetchImpl(route.url(op, params), { signal: ctl.signal, headers: route.direct ? { 'User-Agent': UA, Accept: 'application/json' } : {} });
-      const text = await res.text();
-      if (res.status === 429 || res.status >= 500) throw new Error('route busy');
-      const body = JSON.parse(text);                 // a filter's "blocked" page is HTML and lands here
-      if (typeof body !== 'object' || body === null) throw new Error('not an answer');
-      if (!route.direct && body.ok === undefined) throw new Error('not an answer');
-      return route.direct ? JSON.stringify(fromYahoo(op, body)) : text;
+      const res = await fetchImpl(url, { signal: ctl.signal, headers: headers ?? {} });
+      return { status: res.status, text: await res.text() };
     } finally {
       clearTimeout(timer);
     }
-  }
+  };
+}
+
+export function createRelay({ fetchImpl = fetch, now = Date.now, storage = AsyncStorage, routes = ROUTES }: Deps = {}) {
+  const get = makeGet(fetchImpl);
+  let best = 0, loadedBest = false;
+  const restUntil = routes.map(() => 0);
+  const lastSave = new Map<string, number>();
 
   const cacheKey = (op: string, p: Record<string, string>) =>
     op === 'chart' ? `terminal:c:${p.symbol}|${p.interval}|${p.range}` : op === 'spark' ? `terminal:s:${p.symbols}` : '';
@@ -131,18 +154,26 @@ export function createRelay({ fetchImpl = fetch, now = Date.now, storage = Async
   return async function relay(op: string, params: Record<string, string>): Promise<string> {
     if (op !== 'chart' && op !== 'spark' && op !== 'search' && op !== 'health') throw new Error('Unknown request.');
     if (op === 'health') return '{"ok":true}';
+    if (!loadedBest) {
+      loadedBest = true;
+      try {
+        const saved = await storage.getItem(BEST_KEY);
+        const i = routes.findIndex((r) => r.name === saved);
+        if (i >= 0) best = i;
+      } catch { /* start from the first */ }
+    }
     const t = now();
-    const order = ROUTES.map((_, i) => i).filter((i) => restUntil[i] <= t).sort((a, b) => (a === best ? -1 : b === best ? 1 : a - b));
+    const order = routes.map((_, i) => i).filter((i) => restUntil[i] <= t).sort((a, b) => (a === best ? -1 : b === best ? 1 : a - b));
     const key = cacheKey(op, params);
     for (const i of order) {
       try {
-        const text = await tryRoute(ROUTES[i], op, params);
-        best = i;
+        const text = await routes[i].call(op, params, get);
+        if (i !== best) { best = i; storage.setItem(BEST_KEY, routes[i].name).catch(() => {}); }
         restUntil[i] = 0;
         void remember(key, text);
         return text;
-      } catch {
-        restUntil[i] = now() + REST_MS;
+      } catch (err) {
+        if (!(err as NoData)?.isNoData) restUntil[i] = now() + REST_MS;
       }
     }
     // Nothing answered: rest briefly so the next poll is instant, then try every route again.
@@ -153,6 +184,30 @@ export function createRelay({ fetchImpl = fetch, now = Date.now, storage = Async
         if (saved) return '{"_stale":true,' + saved.slice(1);
       } catch { /* no saved copy */ }
     }
-    throw new Error("Can't reach the price data on this network.");
+    throw new Error('This network is blocking the stock data sources. Open Tools, then Connection, to see which ones.');
   };
+}
+
+export type CheckResult = { label: string; ok: boolean; detail: string };
+
+/** Tools > Connection: asks each source for Apple's chart, and reports what this network allows. */
+export async function checkRoutes({ fetchImpl = fetch, routes = ROUTES }: Pick<Deps, 'fetchImpl' | 'routes'> = {}): Promise<CheckResult[]> {
+  const get = makeGet(fetchImpl);
+  const results = await Promise.all(routes.map(async (r): Promise<CheckResult> => {
+    const t = Date.now();
+    try {
+      const body = JSON.parse(await r.call('chart', { symbol: 'AAPL', interval: '5m', range: '1d' }, get));
+      if (body.ok && body.candles?.length) return { label: r.label, ok: true, detail: `Works: Apple at ${Number(body.price).toFixed(2)}, ${((Date.now() - t) / 1000).toFixed(1)}s` };
+      return { label: r.label, ok: false, detail: 'Answered, but with no prices' };
+    } catch (e) {
+      const msg = String((e as Error)?.message ?? e);
+      return { label: r.label, ok: false, detail: /abort/i.test(msg) ? 'Blocked or too slow (no answer in 5s)' : /JSON|Unexpected|not an answer/i.test(msg) ? 'Blocked (a filter page came back)' : /busy/.test(msg) ? 'Refused or busy' : 'Blocked (could not connect)' };
+    }
+  }));
+  let internet: CheckResult;
+  try {
+    const r = await get('https://www.apple.com/library/test/success.html');
+    internet = { label: 'General internet (apple.com)', ok: r.status === 200, detail: r.status === 200 ? 'Works' : `Status ${r.status}` };
+  } catch { internet = { label: 'General internet (apple.com)', ok: false, detail: 'Could not connect' }; }
+  return [internet, ...results];
 }

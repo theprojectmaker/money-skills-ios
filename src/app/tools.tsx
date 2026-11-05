@@ -1,7 +1,8 @@
 // Calculators for the money maths behind trading and everyday saving. Inputs stay as the text you typed.
 import React, { useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
-import { Choice, Facts, H, Label, P } from '../ui/kit';
+import { Button, Choice, Facts, H, Label, P } from '../ui/kit';
+import { checkRoutes, CheckResult } from '../terminal/relay';
 import { C, mono, money, pct } from '../ui/theme';
 
 function Field({ label, value, onChange, suffix, prefix }: { label: string; value: string; onChange: (v: string) => void; suffix?: string; prefix?: string }) {
@@ -78,7 +79,29 @@ function Payoff() {
   );
 }
 
-const CALCS = { size: Sizing, edge: Edge, grow: Compound, debt: Payoff };
+function Connection() {
+  const [running, setRunning] = useState(false);
+  const [results, setResults] = useState<CheckResult[] | null>(null);
+  const run = () => { setRunning(true); checkRoutes().then(setResults, () => setResults([])).finally(() => setRunning(false)); };
+  return (
+    <View style={{ gap: 18 }}>
+      <P dim>Shows which stock data sources this Wi-Fi allows. Real stocks in Trade need at least one of them to work. SIM stocks and Predict never need a connection.</P>
+      <Button label={running ? 'Checking...' : results ? 'Check again' : 'Check this network'} kind="solid" disabled={running} testID="check-network" onPress={run} />
+      {results ? (
+        <View>
+          {results.map((r, i) => (
+            <View key={i} style={{ paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderTopColor: C.line }}>
+              <Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>{r.label}</Text>
+              <Text style={{ color: r.ok ? C.up : C.down, fontSize: 14, marginTop: 2 }}>{r.detail}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const CALCS = { size: Sizing, edge: Edge, grow: Compound, debt: Payoff, net: Connection };
 
 export default function Tools() {
   const [which, setWhich] = useState<keyof typeof CALCS>('size');
@@ -86,7 +109,7 @@ export default function Tools() {
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 28, paddingBottom: 80, maxWidth: 760, width: '100%', alignSelf: 'center', gap: 20 }} keyboardShouldPersistTaps="handled">
       <View style={{ gap: 6 }}><Label>Tools</Label><H size={30}>Calculators</H></View>
-      <Choice value={which} onChange={setWhich} testID="calc" options={[{ v: 'size', label: 'Position size' }, { v: 'edge', label: 'Edge' }, { v: 'grow', label: 'Growth' }, { v: 'debt', label: 'Debt' }]} />
+      <Choice value={which} onChange={setWhich} testID="calc" options={[{ v: 'size', label: 'Position size' }, { v: 'edge', label: 'Edge' }, { v: 'grow', label: 'Growth' }, { v: 'debt', label: 'Debt' }, { v: 'net', label: 'Connection' }]} />
       <Calc />
       <P dim style={{ fontSize: 13, lineHeight: 20 }}>For learning only. Not financial advice.</P>
       <P dim style={{ fontSize: 13, lineHeight: 20 }}>Charts use TradingView Lightweight Charts (tradingview.com), open source under the Apache 2.0 license. Money Skills is not made by or connected with TradingView.</P>
