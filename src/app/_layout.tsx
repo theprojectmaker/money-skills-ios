@@ -35,8 +35,8 @@ function Welcome() {
     <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 32, paddingTop: 80, maxWidth: 640, alignSelf: 'center', gap: 18 }}>
       <Label>Money Skills</Label>
       <H size={34}>Learn to trade by predicting, then watching what happens.</H>
-      <P dim>Predict shows you a chart that stops part-way. Read it with real charting tools, take a position or stay out, then speed through what happened next. Trade is a full practice terminal with a simulated market.</P>
-      <P dim>Everything here is simulated on your device. The stocks, prices and charts are invented, and nothing needs a connection. This is education, not financial advice, and no setup works every time. Most real beginners lose money, so learn the risk rules first.</P>
+      <P dim>Predict shows you a chart that stops part-way. Read it with real charting tools, take a position or stay out, then speed through what happened next. Trade is a full practice terminal with real stocks and a made-up market, always with pretend money.</P>
+      <P dim>Predict charts are invented and work with no connection. In Trade, real stocks like Apple need internet, their prices can be delayed or wrong, and the SIM stocks always work offline. This is education, not financial advice, and no setup works every time. Most real beginners lose money, so learn the risk rules first.</P>
       <Button label="Start" kind="solid" testID="accept" onPress={() => set({ seen: true })} style={{ marginTop: 8 }} />
     </ScrollView>
   );

@@ -19,8 +19,8 @@ test('every quiz answer points at a real option', () => {
   for (const l of LESSONS) for (const q of l.quiz) assert.ok(q.answer >= 0 && q.answer < q.options.length, l.id);
 });
 
-test('the terminal page is present and has no data relay address', () => {
+test('the terminal page is present', () => {
   const page: string = require('../src/terminal/page.js');
   assert.ok(page.length > 500000 && page.includes('MYSTERY'));
-  assert.ok(!page.includes('workers.dev') && !page.includes('script.google.com/macros'));
+  assert.ok(!page.includes('script.google.com/macros'));
 });

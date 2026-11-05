@@ -6,9 +6,11 @@ import { View } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C } from '../ui/theme';
+import { createRelay } from './relay';
 
 const page: string = require('./page.js');
 const KEY = 'terminal:v1';
+const relay = createRelay();
 
 export type TerminalProps = { visible: boolean; mode: 'trade' | 'predict'; kind: string | null };
 
@@ -39,6 +41,9 @@ export default function Terminal({ visible, mode, kind }: TerminalProps) {
       if (msg.type === 'ready') {
         ready.current = true;
         ref.current?.injectJavaScript(setModeJs(mode, kind));
+      } else if (msg.type === 'relay') {
+        const reply = (ok: boolean, payload: string) => ref.current?.injectJavaScript('window.__nativeRelay&&window.__nativeRelay(' + msg.id + ',' + ok + ',' + JSON.stringify(payload) + ');true;');
+        relay(msg.op, msg.params).then((text) => reply(true, text), (err) => reply(false, String(err?.message ?? err)));
       } else if (msg.type === 'save') {
         AsyncStorage.setItem(KEY, msg.data).catch(() => {});
       }
