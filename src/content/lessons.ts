@@ -20,7 +20,7 @@ export const LESSONS: Lesson[] = [
       ], rule: 'You are never predicting the future. You are choosing a risk and a place to be wrong.' },
       { h: 'Volume and the average', p: [
         'Volume shows how many people took part. A move on heavy volume is more believable than the same move on thin volume.',
-        'The amber line, when you turn it on in Predict, is the 20-bar moving average: the mean of the last 20 closes. It smooths noise so the direction is easier to see.',
+        'A moving average, which you can add from Indicators on the chart, is the mean of the last so many closes (20 is common). It smooths noise so the direction is easier to see.',
       ], chart: { kind: 'uptrend', seed: 11, average: true, caption: 'The moving average rises with the trend and acts as a rough floor on dips.' } },
     ],
     quiz: [
@@ -73,7 +73,7 @@ export const LESSONS: Lesson[] = [
     pages: [
       { h: 'Think in R', p: [
         '1R is the amount you lose if your stop is hit. If you risk $100 on a trade, then losing $100 is -1R and making $250 is +2.5R. Measuring in R lets you compare trades of any size.',
-        'Every Predict round and Trade session in this app reports results in R for this reason.',
+        'Every Predict round in this app reports its result in R for this reason.',
       ] },
       { h: 'Position size comes from your stop', p: [
         'Decide the loss you will accept first, then work out how many shares fit it. Shares = money at risk divided by the distance from entry to stop.',

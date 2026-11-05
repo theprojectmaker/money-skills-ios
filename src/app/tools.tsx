@@ -89,6 +89,7 @@ export default function Tools() {
       <Choice value={which} onChange={setWhich} testID="calc" options={[{ v: 'size', label: 'Position size' }, { v: 'edge', label: 'Edge' }, { v: 'grow', label: 'Growth' }, { v: 'debt', label: 'Debt' }]} />
       <Calc />
       <P dim style={{ fontSize: 13, lineHeight: 20 }}>For learning only. Not financial advice.</P>
+      <P dim style={{ fontSize: 13, lineHeight: 20 }}>Charts use TradingView Lightweight Charts (tradingview.com), open source under the Apache 2.0 license. Money Skills is not made by or connected with TradingView.</P>
     </ScrollView>
   );
 }

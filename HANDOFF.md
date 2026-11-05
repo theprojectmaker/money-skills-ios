@@ -1,14 +1,16 @@
-# Money Skills: handoff (2026-11-04, rebuilt from scratch)
+# Money Skills: handoff (2026-11-05)
 
-The first version froze on a real iPad (chart gestures + a global store re-rendering everything). This is a ground-up rewrite
-with no gestures, no Modal, and state kept local to each screen.
+Trade and Predict are one WKWebView (src/terminal/Terminal.tsx) running the TradingView-style terminal from tests/paper-trader, offline on the SIM market.
+Lightweight Charts draws the chart, so pan, pinch, axis scaling, crosshair, drawings and draggable order lines all come from that terminal.
 
-- Predict (src/app/index.tsx): chart stops at day 70, user buys / shorts / stays out with an ATR stop and reward:risk, then 40 bars play out
-  at normal / fast / skip speed; result in R, recap and a lesson link. Seven scenario kinds, textbook outcome ~65% (src/engine/scenarios.ts).
-- Trade (src/app/trade.tsx): endless simulated stock (5 tickers), play/pause/step, risk-based sizing, stop/target, session review.
-- Learn (src/content/lessons.ts): 10 lessons, real chart examples, 3-question checks with explanations.
-- Tools: position size, expectancy, compound growth, debt payoff.
-- Engine: src/engine (gen, scenarios, broker, live). `npm test` runs 7 tests; `npm run typecheck`.
+Edit the terminal in tests/paper-trader/app/src/js (Predict: predict.js, predict-model.js; native hides and bridge: native.js; `NATIVE` in hosting.js guards the rest), then run
+`node tools/build-native.mjs` there. It regenerates src/terminal/page.js here. Check it with the `money-terminal` launch entry; `?coarse` fakes a touch screen and gives the iPad layout.
 
-Not verified on a device. Web-tested only (Predict round, Trade at 15 bars/s with ~16 ms max lag, lesson + quiz, tools, portrait layout).
-Removed from v1: indicator panel, drawing tools, replay sandbox, life-skills courses (still in git history before commit "Rebuild").
+- Predict: 70 bars shown, 40 hidden. Buy, short or stay out (1% risk bracket, lines draggable), then run at 1x, 2x, 5x, 10x or Max using the replay engine and its separate account. Recap and record in store key predictStats.
+- Trade: live SIM market, full terminal, Replay button.
+- Learn and Tools stay native. Lesson Practise buttons open Predict with ?kind=.
+- Saved data lives in localStorage, mirrored to AsyncStorage (terminal:v1) and restored only if localStorage is empty.
+
+Tests: `npm test` here; `node --test test/predict-model.test.mjs` in paper-trader/app.
+Verified in a browser only (iPad-size, touch layout simulated): round played end to end, tab switching, real mouse drawing and panning, no network requests.
+Not verified on a device: real pinch and finger gestures in WKWebView, localStorage persistence, the AsyncStorage restore. The terminal's lessons, markets and bots are hidden, and the real-ticker catalog is removed from this build.

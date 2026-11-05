@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { Slot, usePathname, useRouter } from 'expo-router';
+import { Slot, useGlobalSearchParams, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { load, set, useStore } from '../store';
+import Terminal from '../terminal/Terminal';
 import { C } from '../ui/theme';
 import { Button, H, Label, P } from '../ui/kit';
 
@@ -34,8 +35,8 @@ function Welcome() {
     <ScrollView style={{ flex: 1, backgroundColor: C.bg }} contentContainerStyle={{ padding: 32, paddingTop: 80, maxWidth: 640, alignSelf: 'center', gap: 18 }}>
       <Label>Money Skills</Label>
       <H size={34}>Learn to trade by predicting, then watching what happens.</H>
-      <P dim>Each round shows you a chart that stops part-way. You decide: buy, sell short, or stay out. Then the next weeks play out fast, and you see how your decision and your risk would have done.</P>
-      <P dim>Everything here is simulated on your device. The companies, prices and charts are invented, and nothing needs a connection. This is education, not financial advice, and no setup works every time. Most real beginners lose money, so learn the risk rules first.</P>
+      <P dim>Predict shows you a chart that stops part-way. Read it with real charting tools, take a position or stay out, then speed through what happened next. Trade is a full practice terminal with a simulated market.</P>
+      <P dim>Everything here is simulated on your device. The stocks, prices and charts are invented, and nothing needs a connection. This is education, not financial advice, and no setup works every time. Most real beginners lose money, so learn the risk rules first.</P>
       <Button label="Start" kind="solid" testID="accept" onPress={() => set({ seen: true })} style={{ marginTop: 8 }} />
     </ScrollView>
   );
@@ -44,18 +45,21 @@ function Welcome() {
 function Shell() {
   const path = usePathname();
   const router = useRouter();
+  const params = useGlobalSearchParams<{ kind?: string }>();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const ready = useStore((s) => s.ready);
   const seen = useStore((s) => s.seen);
-  const rail = width >= 760;
+  const rail = width >= 600;
 
   useEffect(() => { void load(); }, []);
 
   if (!ready) return <View style={{ flex: 1, backgroundColor: C.bg }} />;
   if (!seen) return <View style={{ flex: 1, backgroundColor: C.bg, paddingTop: insets.top }}><Welcome /></View>;
 
-  const active = (t: string) => (t === '/' ? path === '/' || path === '/index' : path.startsWith(t) || (t === '/learn' && path.startsWith('/lesson')));
+  const onPredict = path === '/' || path === '/index';
+  const onTrade = path.startsWith('/trade');
+  const active = (t: string) => (t === '/' ? onPredict : path.startsWith(t) || (t === '/learn' && path.startsWith('/lesson')));
   const nav = TABS.map((t) => {
     const on = active(t.path);
     return (
@@ -65,24 +69,25 @@ function Shell() {
         accessibilityRole="button"
         onPress={() => router.navigate(t.path as never)}
         style={{
-          flex: rail ? undefined : 1, paddingVertical: rail ? 14 : 12, paddingHorizontal: rail ? 14 : 0, alignItems: rail ? 'flex-start' : 'center',
-          borderLeftWidth: rail ? 3 : 0, borderLeftColor: on ? C.text : 'transparent', borderTopWidth: rail ? 0 : 2, borderTopColor: on ? C.text : 'transparent',
+          flex: rail ? undefined : 1, minHeight: 56, justifyContent: 'center', alignItems: 'center',
+          borderLeftWidth: rail ? 2 : 0, borderLeftColor: on ? C.blue : 'transparent', borderTopWidth: rail ? 0 : 2, borderTopColor: on ? C.blue : 'transparent',
+          backgroundColor: on ? C.raised : 'transparent',
         }}
       >
-        <Text style={{ color: on ? C.text : C.faint, fontWeight: '700', fontSize: 14, letterSpacing: 0.3 }}>{t.label}</Text>
+        <Text style={{ color: on ? '#fff' : C.mute, fontWeight: '600', fontSize: 12 }}>{t.label}</Text>
       </Pressable>
     );
   });
 
   return (
     <View style={{ flex: 1, flexDirection: rail ? 'row' : 'column', backgroundColor: C.bg, paddingTop: insets.top }}>
-      {rail && (
-        <View style={{ width: 112, backgroundColor: C.surface, borderRightWidth: 1, borderRightColor: C.line, paddingTop: 22 }}>
-          <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, letterSpacing: -0.2, paddingHorizontal: 16, marginBottom: 18, lineHeight: 18 }}>Money{'\n'}Skills</Text>
-          {nav}
+      {rail && <View style={{ width: 68, backgroundColor: C.bg, borderRightWidth: 1, borderRightColor: C.line, paddingTop: 6 }}>{nav}</View>}
+      <View style={{ flex: 1, paddingBottom: rail ? insets.bottom : 0 }}>
+        <View style={{ flex: 1 }}>
+          <Boundary><Slot /></Boundary>
+          <Terminal visible={onPredict || onTrade} mode={onTrade ? 'trade' : 'predict'} kind={params.kind ?? null} />
         </View>
-      )}
-      <View style={{ flex: 1 }}><Boundary><Slot /></Boundary></View>
+      </View>
       {!rail && <View style={{ flexDirection: 'row', backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.line, paddingBottom: insets.bottom }}>{nav}</View>}
     </View>
   );
