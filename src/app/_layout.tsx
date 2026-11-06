@@ -59,7 +59,8 @@ function Shell() {
 
   const onPredict = path === '/' || path === '/index';
   const onTrade = path.startsWith('/trade');
-  const active = (t: string) => (t === '/' ? onPredict : path.startsWith(t) || (t === '/learn' && path.startsWith('/lesson')));
+  const onLearn = path.startsWith('/learn');
+  const active = (t: string) => (t === '/' ? onPredict : path.startsWith(t));
   const nav = TABS.map((t) => {
     const on = active(t.path);
     return (
@@ -85,7 +86,7 @@ function Shell() {
       <View style={{ flex: 1, paddingBottom: rail ? insets.bottom : 0 }}>
         <View style={{ flex: 1 }}>
           <Boundary><Slot /></Boundary>
-          <Terminal visible={onPredict || onTrade} mode={onTrade ? 'trade' : 'predict'} kind={params.kind ?? null} />
+          <Terminal visible={onPredict || onTrade || onLearn} mode={onLearn ? 'learn' : onTrade ? 'trade' : 'predict'} kind={params.kind ?? null} />
         </View>
       </View>
       {!rail && <View style={{ flexDirection: 'row', backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.line, paddingBottom: insets.bottom }}>{nav}</View>}

@@ -22,11 +22,11 @@ test('when everything else is blocked, CNBC gives the terminal a usable chart', 
   assert.deepEqual(body.candles, [[Date.UTC(2026, 10, 5, 14, 30) / 1000, 100, 103, 99, 101, 10]]);
 });
 
-test('crypto is never sent to the stock-only sources', async () => {
+test('forex is never sent to the stock-only sources', async () => {
   const urls: string[] = [];
   const fetchImpl = (async (url: string) => { urls.push(url); throw new Error('blocked'); }) as any;
   const store = { getItem: async () => null, setItem: async () => {} } as any;
-  await assert.rejects(createRelay({ fetchImpl, storage: store })('chart', { symbol: 'BTC-USD', interval: '5m', range: '1d' }));
+  await assert.rejects(createRelay({ fetchImpl, storage: store })('chart', { symbol: 'EURUSD=X', interval: '5m', range: '1d' }));
   assert.ok(urls.length > 0 && urls.every((u) => !u.includes('cnbc') && !u.includes('nasdaq')));
 });
 

@@ -48,12 +48,14 @@ function chartAnswer(symbol: string, name: string, exchange: string, rows: Row[]
 
 // ---- CNBC ------------------------------------------------------------------------------------------------------------------
 const CNBC_UA = 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
-const cnbcSymbol = (s: string) => s.replace('-', '.');
+const CNBC_CRYPTO: Record<string, string> = { 'BTC-USD': 'BTC.CM=', 'ETH-USD': 'ETH.CM=' };
+const cnbcSymbol = (s: string) => CNBC_CRYPTO[s] || s.replace('-', '.');
+const cnbcHas = (s: string) => plainStock(s) || !!CNBC_CRYPTO[s];
 
 export async function cnbcCall(op: string, p: Record<string, string>, get: Get, nowSec = Math.floor(Date.now() / 1000)): Promise<string> {
   const headers = { 'User-Agent': CNBC_UA, Accept: 'application/json' };
   if (op === 'spark') {
-    const wanted = p.symbols.split(',').filter(plainStock);
+    const wanted = p.symbols.split(',').filter(cnbcHas);
     if (!wanted.length) throw new NoData('no stocks');
     const r = await get('https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=' + wanted.map(cnbcSymbol).map(encodeURIComponent).join('%7C') + '&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=0&output=json&events=0', headers);
     const list = JSON.parse(r.text)?.FormattedQuoteResult?.FormattedQuote;
@@ -64,7 +66,8 @@ export async function cnbcCall(op: string, p: Record<string, string>, get: Get, 
     });
     return JSON.stringify({ ok: true, quotes });
   }
-  if (op !== 'chart' || !plainStock(p.symbol)) throw new NoData('unsupported');
+  if (op !== 'chart' || !cnbcHas(p.symbol)) throw new NoData('unsupported');
+  const crypto = !!CNBC_CRYPTO[p.symbol];
   const daily = p.interval === '1d', weekly = p.interval === '1wk';
   const sec = SECONDS[p.interval];
   if (!daily && !weekly && !sec) throw new NoData('unsupported interval');
@@ -80,12 +83,13 @@ export async function cnbcCall(op: string, p: Record<string, string>, get: Get, 
     if (o === null || h === null || l === null || c === null || !t) continue;
     // tradeTime is New York local time (yyyymmddhhmmss): outside the regular session unless pre/post was asked for
     const hhmm = Number(String(b.tradeTime || '').slice(8, 12));
-    if (!daily && !weekly && p.prepost !== '1' && (hhmm < 930 || hhmm >= 1600)) continue;
+    if (!crypto && !daily && !weekly && p.prepost !== '1' && (hhmm < 930 || hhmm >= 1600)) continue;
     rows.push([weekly ? t + 86400 : t, o, h, l, c, Number(b.volume) || 0]); // weekly bars are stamped Sunday; the chart's weeks start Monday
   }
   if (sec) rows = combine(rows, sec);
-  if (daily) rows = rows.concat(await cnbcRecentDays(cnbcSymbol(p.symbol), rows.length ? rows[rows.length - 1][0] : 0, headers, get));
-  return JSON.stringify(chartAnswer(p.symbol, body.barData.companyName || p.symbol, body.barData.exchange || 'CNBC', rows, p.interval, daily || weekly, nowSec));
+  if (daily && !crypto) rows = rows.concat(await cnbcRecentDays(cnbcSymbol(p.symbol), rows.length ? rows[rows.length - 1][0] : 0, headers, get));
+  const answer = chartAnswer(p.symbol, body.barData.companyName || p.symbol, body.barData.exchange || 'CNBC', rows, p.interval, daily || weekly, nowSec);
+  return JSON.stringify(crypto ? { ...answer, tz: 'UTC', gmtoffset: 0, state: 'REGULAR', regular: null, type: 'CRYPTOCURRENCY' } : answer);
 }
 
 /** CNBC's daily series ends a day or two behind, so the newest days are built from its 5-minute bars. */

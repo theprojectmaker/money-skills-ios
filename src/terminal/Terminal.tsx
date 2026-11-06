@@ -12,7 +12,7 @@ const page: string = require('./page.js');
 const KEY = 'terminal:v1';
 const relay = createRelay();
 
-export type TerminalProps = { visible: boolean; mode: 'trade' | 'predict'; kind: string | null };
+export type TerminalProps = { visible: boolean; mode: 'trade' | 'predict' | 'learn'; kind: string | null };
 
 const setModeJs = (mode: string, kind: string | null) =>
   `window.__pt&&window.__pt.native&&window.__pt.native.setMode(${JSON.stringify(mode)},${JSON.stringify(kind)});true;`;
