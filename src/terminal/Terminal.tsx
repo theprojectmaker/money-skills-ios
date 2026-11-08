@@ -8,7 +8,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C } from '../ui/theme';
 import { createRelay } from './relay';
 
-const page: string = require('./page.js');
+// The page is ~9 MB of JavaScript text. Requiring it at module scope would parse it before the first frame, which can trip
+// iOS's launch watchdog on a real device, so it is loaded just after the app has drawn.
+let pageText: string | null = null;
+const loadPage = (): string => (pageText ??= require('./page.js') as string);
 const KEY = 'terminal:v1';
 const relay = createRelay();
 
@@ -26,9 +29,12 @@ export default function Terminal({ visible, mode, kind }: TerminalProps) {
   const ref = useRef<WebView>(null);
   const ready = useRef(false);
   const [saved, setSaved] = useState<string | null | undefined>(undefined);
+  const [page, setPage] = useState<string | null>(pageText);
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then(setSaved, () => setSaved(null));
+    const id = setTimeout(() => setPage(loadPage()), 0);
+    return () => clearTimeout(id);
   }, []);
 
   useEffect(() => {
@@ -55,7 +61,7 @@ export default function Terminal({ visible, mode, kind }: TerminalProps) {
       pointerEvents={visible ? 'auto' : 'none'}
       style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, opacity: visible ? 1 : 0, zIndex: visible ? 2 : -1, backgroundColor: C.bg }}
     >
-      {saved === undefined ? null : (
+      {saved === undefined || !page ? null : (
         <WebView
           ref={ref}
           originWhitelist={['*']}
